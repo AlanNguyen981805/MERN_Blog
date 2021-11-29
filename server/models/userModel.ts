@@ -11,11 +11,12 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Please add your email and phone'],
         trim: true,
-        unique: false
+        unique: true
     },
     password: {
         type: String,
         required: [true, "Please add your password"],
+        min: [6, "Nhập mật khẩu nhiều hơn 6 ký tự"],
         trim: true
     },
     avatar: {

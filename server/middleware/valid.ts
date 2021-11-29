@@ -23,8 +23,7 @@ export const validateRegister = async (req: Request, res: Response, next: NextFu
 }
 
 export function validatePhone(phone: string) {
-    const re = /^[+]/g
-    return re.test(phone)
+    return phone
 }
 
 export function validateEmail(email: string){
