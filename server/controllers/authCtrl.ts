@@ -1,12 +1,12 @@
 import jwt from 'jsonwebtoken';
-import { generateActiveToken } from './../config/generateToken';
+import { generateActiveToken, generateAccessToken, generateRefeshToken } from './../config/generateToken';
 import { Request, Response } from "express";
 import Users from "../models/userModel";
 import bcrypt from "bcrypt"
 import sendEmail from '../config/sendMail';
 import { validateEmail, validatePhone } from '../middleware/valid';
 import { sendSms } from '../config/sendSMS';
-import { IDecodeToken } from '../config/interface';
+import { IDecodeToken, IUser } from '../config/interface';
 
 const CLIENT_URL = `${process.env.BASE_URL}`
 
@@ -69,6 +69,75 @@ const authCtrl = {
             return res.status(500).json({msg: errMsg})
         }
     },
+
+    login: async(req: Request, res: Response) => {
+        try {
+            const { account, password } = req.body;
+            const user = await Users.findOne({account})
+            if(!user) return res.status(400).json({msg: 'Account khong ton tai'})
+
+            // if login success
+            loginUser(user, password, res)
+             console.log(req.body);
+             res.json({msg: 'Login success'})
+             
+             
+        } catch (err: any) {
+            console.log(err)
+            return res.status(500).json({msg: err.message})
+        }
+    },
+
+    refreshToken: async(req: Request, res: Response) => {
+        try {
+            const rf_token = req.cookies.refresh_token
+            if(!rf_token) return res.status(400).json({msg: 'Vui log dang nhap'})
+            const decoded = <IDecodeToken>jwt.verify(rf_token, `${process.env.REFESH_TOKEN_SECRET}`) 
+            if(!decoded.id) return res.status(400).json({msg: ' Vui long dang nhap'})
+            
+            const user = await Users.findById(decoded.id).select('-password')
+            
+            if(!user) return res.status(400).json({msg: 'Tai khoan khong ton tai'})
+            const accessToken = generateAccessToken({id: user._id  }) 
+
+            res.json({accessToken})
+
+            
+        } catch (err: any) {
+            console.log(err)
+            return res.status(500).json({msg: err.message})
+        }
+    },
+    logout: async(req: Request, res: Response) => {
+        try {
+            res.clearCookie('refresh_token',{ path: 'api/refresh_token'})
+            return res.json({msg: `Đã đăng xuất`})
+        } catch (err: any) {
+            console.log(err)
+            return res.status(500).json({msg: err.message})
+        }
+    },
+}
+
+const loginUser = (user: IUser, password: string, res: Response) => {
+    const isMatch = bcrypt.compare(password, user.password)
+    if(!isMatch) return res.status(400).json({msg: "Mật khẩu không đúng"})
+
+    const accessToken = generateAccessToken({id: user._id})
+    const refresh_token = generateRefeshToken({id: user._id})
+
+    res.cookie('refresh_token', refresh_token, {
+        httpOnly: true,
+        path: 'api/refresh_token',
+        maxAge: 30*24*60*60*1000 //30days
+    })
+
+    res.json({
+        msg: 'Login success',
+        accessToken,
+        user: { ...user._doc, password: '' }
+    })
+
 }
 
 export default authCtrl
