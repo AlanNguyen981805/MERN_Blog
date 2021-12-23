@@ -48,25 +48,24 @@ const authCtrl = {
     activeAccount: async(req: Request, res: Response) => {
         try {
             const { active_token } = req.body;
-
+            console.log(active_token);
+            
             const decoded = <IDecodeToken>jwt.verify(active_token, `${process.env.ACTIVE_TOKEN_SECRET}`)
             const {newUser} = decoded
             if(!newUser) return res.status(400).json({ msg: "Invalid authentication" })
-            const user = new Users(newUser)
+            const user = await Users.findOne({account: newUser.account})   
 
-            await user.save()
+            if(user) return res.status(400).json({msg: "Account already exist"}) 
+            const new_user = new Users(newUser)
+
+            await new_user.save()
 
             res.json({msg: "Tài khoản đã được kích hoạt"})
 
         } catch (err: any) {
-            console.log(err);
-            let errMsg;
-            if(err.code === 11000) {
-                errMsg = Object.keys(err.keyValue)[0] + " đã tồn tại"
-            } else {
-                console.log(err)
-            }
-            return res.status(500).json({msg: errMsg})
+            console.log('errrr', err);
+            
+            return res.status(500).json({msg: err.message, status: 500})
         }
     },
 
@@ -100,7 +99,7 @@ const authCtrl = {
             if(!user) return res.status(400).json({msg: 'Tai khoan khong ton tai'})
             const accessToken = generateAccessToken({id: user._id  }) 
 
-            res.json({accessToken})
+            res.json({accessToken, user})
 
             
         } catch (err: any) {
@@ -123,7 +122,7 @@ const loginUser = (user: IUser, password: string, res: Response) => {
     const isMatch = bcrypt.compare(password, user.password)
     if(!isMatch) return res.status(400).json({msg: "Mật khẩu không đúng"})
 
-    const accessToken = generateAccessToken({id: user._id})
+    const access_token = generateAccessToken({id: user._id})
     const refresh_token = generateRefeshToken({id: user._id})
 
     res.cookie('refresh_token', refresh_token, {
@@ -133,9 +132,8 @@ const loginUser = (user: IUser, password: string, res: Response) => {
     })
 
     res.json({
-        msg: 'Login success',
-        accessToken,
-        user: { ...user._doc, password: '' }
+        access_token,
+        user
     })
 
 }
